@@ -1382,6 +1382,8 @@ function decodeElement(elem: xml.Element, state: DecodeState): stencila.Node[] {
       return decodeCode(elem)
     case 'fn':
       return decodeNote(elem, state)
+    case 'statement':
+      return decodeStatement(elem, state)
     default:
       log.warn(`Using default decoding for JATS element name: "${elem.name}"`)
       return decodeDefault(elem, state)
@@ -2343,4 +2345,39 @@ function decodeNote(elem: xml.Element, state: DecodeState): [stencila.Note] {
       noteType: 'Footnote',
     }),
   ]
+}
+
+/**
+ * Decode a JATS `<statement>` element as a Stencila `Node`.
+ */
+function decodeStatement(
+  elem: xml.Element,
+  state: DecodeState
+): stencila.Node[] {
+  const id = attrOrUndefined(elem, 'id')
+  const titleElem = first(elem, 'title')
+  const title = decodeElements(titleElem?.elements ?? [], state)
+
+  const contentElems = children(elem, 'p')
+  const nodes = decodeElements(contentElems ?? [], state)
+
+  let para: stencila.Paragraph | undefined = stencila.paragraph({
+    id,
+    content: ensureInlineContentArray(title),
+  })
+
+  const blocks: stencila.Node[] = []
+  for (const node of nodes) {
+    if (stencila.isInlineContent(node)) {
+      if (para === undefined) para = stencila.paragraph({ content: [node] })
+      else para.content.push(node)
+    } else {
+      if (para !== undefined) {
+        blocks.push(para)
+        para = undefined
+      }
+      blocks.push(node)
+    }
+  }
+  return blocks
 }
